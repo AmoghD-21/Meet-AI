@@ -1,3 +1,35 @@
+"""
+app/services/audio_processor.py
+================================
+Audio format conversion service using ffmpeg.
+
+The browser's MediaRecorder API produces audio in WebM/Opus format.
+Groq Whisper requires WAV format at 16 kHz, mono channel, 16-bit signed PCM.
+This module bridges that gap using ffmpeg as a subprocess.
+
+Main function — convert_webm_to_wav(audio_bytes, chunk_id):
+  1. Validates that the audio bytes are non-empty and > 100 bytes.
+  2. Saves raw bytes to uploads/ as chunk_{id}.webm.
+  3. Runs ffmpeg with arguments:
+       -ar 16000     → 16 kHz sample rate (Whisper requirement)
+       -ac 1         → mono channel
+       -sample_fmt s16 → 16-bit signed integer PCM
+       -y            → overwrite output file without prompting
+  4. Cleans up the .webm input file immediately (even on failure).
+  5. Checks ffmpeg return code — raises AudioProcessingException on failure.
+  6. Returns the path to the .wav output file.
+
+Cleanup function — cleanup_chunk(file_path):
+  Deletes a temporary audio file. Errors are logged as warnings
+  (not fatal — a leftover temp file is not a critical failure).
+
+KNOWN LIMITATION:
+  subprocess.run() is synchronous and briefly blocks the asyncio event loop.
+  For production, replace with an async ffmpeg wrapper (e.g. aioconsole).
+
+Author : MeetingAI
+"""
+
 import sys
 import os
 import uuid

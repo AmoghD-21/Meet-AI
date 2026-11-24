@@ -1,3 +1,56 @@
+"""
+app/api/audio.py
+================
+Core WebSocket handler and session management for MeetingAI.
+
+This is the central orchestrator of the application. It handles the persistent
+WebSocket connection from the browser and coordinates all services.
+
+Key components:
+
+MeetingSession
+--------------
+A per-connection data class that holds the complete state of one recording session:
+  - transcript_chunks   : list of all transcribed text chunks
+  - chunk_count         : number of audio chunks received
+  - started_at          : session start timestamp (used for duration calculation)
+  - last_summary_at     : timestamp of last progressive summary (10-min interval)
+  - is_recording        : flag toggled on stop command
+  - vector_store        : MeetingVectorStore — per-session in-memory ChromaDB
+  - pipeline            : TranscriptIngestionPipeline — per-session background thread
+
+WebSocket Protocol (client → server):
+  - Binary frame        : Raw WebM/Opus audio chunk
+  - {"type": "stop"}             : End recording; triggers final summary
+  - {"type": "question", "text"} : Q&A question for the LangGraph agent
+  - {"type": "generate_summary"} : Manually request summary
+
+WebSocket Protocol (server → client):
+  - {"type": "transcript"}         : New transcribed chunk
+  - {"type": "qa_answer"}          : LangGraph agent answer
+  - {"type": "final_summary"}      : End-of-session structured summary
+  - {"type": "progressive_summary"}: Mid-session auto-summary (every 10 min)
+  - {"type": "status"}             : Info/status updates
+  - {"type": "error"}              : Error with stage context
+
+Audio chunk pipeline per chunk:
+  1. Size guard (< 5000 bytes → skip)
+  2. ffmpeg: WebM/Opus → WAV 16kHz mono s16  (audio_processor.py)
+  3. Groq Whisper large-v3 transcription       (transcription.py)
+  4. Text appended to session.transcript_chunks
+  5. Text enqueued in ingestion pipeline        (non-blocking)
+  6. WAV file cleaned up (finally block)
+  7. Transcript chunk sent back to browser
+
+Progressive summary is auto-triggered every 10 minutes when word_count > 100.
+
+IMPORTANT — blocking call handling:
+  pipeline.stop() calls queue.join() which blocks. It is wrapped in
+  loop.run_in_executor(None, ...) to avoid blocking the asyncio event loop.
+
+Author : MeetingAI
+"""
+
 import sys
 import json
 from app.services.rag import MeetingVectorStore, TranscriptIngestionPipeline, run_agent

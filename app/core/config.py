@@ -1,3 +1,31 @@
+"""
+app/core/config.py
+==================
+Centralised configuration management for MeetingAI.
+
+All application settings are defined in a single Pydantic `BaseSettings` class.
+Every setting can be overridden by an environment variable or a `.env` file —
+no magic strings are scattered across the codebase.
+
+Key setting groups:
+- Folder paths  : UPLOAD_FOLDER, OUTPUT_FOLDER, TRANSCRIPT_FOLDER, LOG_FOLDER, STATIC_FOLDER
+- Audio         : CHUNK_DURATION_MS, SAMPLE_RATE (16 kHz — Whisper requirement), AUDIO_FORMAT
+- Transcription : WHISPER_MODEL (whisper-large-v3 via Groq cloud)
+- LLM / Summary : GROQ_MODEL (llama-3.3-70b-versatile), GROQ_API_KEY
+- MCP           : MCP_CONFIG_FILE — absolute path to mcp_server_file.json
+- App           : APP_HOST, APP_PORT, DEBUG
+
+Usage:
+    from app.core.config import settings
+    settings.GROQ_API_KEY   # access any setting
+
+The `settings` singleton is created at the bottom of this file and imported
+everywhere in the app. All configured folders are also created at import time
+via `os.makedirs(exist_ok=True)`.
+
+Author : MeetingAI
+"""
+
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings

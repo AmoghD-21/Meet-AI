@@ -1,3 +1,45 @@
+"""
+app/services/rag/ingestion.py
+==============================
+Non-blocking background transcript ingestion pipeline (Producer-Consumer pattern).
+
+Problem solved:
+    Embedding and indexing text into ChromaDB takes measurable time.
+    Doing it synchronously in the WebSocket handler would delay the transcript
+    response sent back to the browser. The ingestion pipeline decouples these.
+
+Design — Producer-Consumer with queue.Queue + daemon thread:
+
+    Producer (WebSocket handler):
+        Calls pipeline.ingest(text, chunk_id) — does queue.put() and returns
+        immediately. The WebSocket handler is never blocked.
+
+    Consumer (background daemon thread):
+        Loops on queue.get(timeout=1.0). For each item:
+          1. Splits text into sentences using _split_sentences().
+          2. Passes sentences to MeetingVectorStore.add_texts().
+          3. Calls queue.task_done() to signal completion.
+
+    daemon=True:
+        The thread is a daemon — it auto-terminates when the main process
+        exits. No explicit cleanup needed on crash.
+
+Sentence Splitter — _split_sentences(text):
+    Uses lookbehind regex (?<=[.!?])\\s+ to split on whitespace following
+    sentence-ending punctuation. Sentences shorter than 15 characters are
+    discarded to filter out noise and transcript artifacts.
+
+Shutdown guarantee — stop():
+    Calls queue.join() which BLOCKS until every queued item has been processed
+    and task_done() called. This guarantees that ALL transcript text is indexed
+    in ChromaDB before the final summary is generated.
+
+    IMPORTANT: stop() is blocking — it must be called via run_in_executor()
+    from async code to avoid blocking the asyncio event loop.
+
+Author : MeetingAI
+"""
+
 import queue
 import threading
 import re

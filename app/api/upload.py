@@ -1,3 +1,39 @@
+"""
+app/api/upload.py
+=================
+REST API endpoints for pre-recorded file upload and processing.
+
+Provides an alternative entry point to MeetingAI for users who want to
+transcribe and summarise an existing audio or video file rather than
+recording live.
+
+Endpoints:
+    POST   /api/upload              Upload and process an audio/video file
+    GET    /api/session/{id}        Retrieve stored session data
+    DELETE /api/session/{id}        Delete session data (privacy compliance)
+
+Supported file types:
+    Audio : .mp3, .wav, .m4a, .flac, .aac, .ogg
+    Video : .mp4, .avi, .mov, .mkv, .webm
+    PDF   : .pdf  (not yet implemented — raises FileProcessingException)
+
+Upload processing pipeline:
+  1. Validate file extension against allow-list
+  2. Save file with UUID-prefixed filename (security: prevents path traversal)
+  3. Transcribe using Groq Whisper (verbose_json — returns language + segments)
+  4. Generate structured summary (direct or MapReduce based on length)
+  5. Store result in in-memory session_store dict
+  6. Clean up uploaded file in finally block
+  7. Return summary, word count, model used, and strategy
+
+Limitations:
+  - session_store is an in-memory dict — not thread-safe and lost on restart.
+    Replace with a database or Redis for production use.
+  - PDF extraction is stubbed out (raises FileProcessingException).
+
+Author : MeetingAI
+"""
+
 import sys
 import os
 import uuid

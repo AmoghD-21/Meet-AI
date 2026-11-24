@@ -1,3 +1,50 @@
+"""
+app/services/summary.py
+========================
+Meeting summarization service using Groq LLaMA-3.3-70B and LangChain LCEL.
+
+This module implements two summarization strategies chosen automatically
+based on estimated transcript token count:
+
+DIRECT Strategy (< 100,000 estimated tokens):
+    Single LCEL chain call: DIRECT_PROMPT | llm | StrOutputParser
+    Fast, one API call, used for most meetings.
+
+MAPREDUCE Strategy (>= 100,000 estimated tokens):
+    Handles arbitrarily long transcripts that exceed LLM context windows.
+    MAP phase:
+      - RecursiveCharacterTextSplitter splits transcript into 4000-char chunks
+        with 200-char overlap (overlap preserves cross-boundary context).
+      - map_chain.batch() runs all chunks IN PARALLEL (max_concurrency=5).
+        Concurrency capped at 5 to respect Groq free-tier rate limits.
+      - Each chunk produces bullet-point key facts via MAP_PROMPT.
+    REDUCE phase:
+      - All chunk summaries joined with "---" separators.
+      - Single reduce_chain.invoke() combines them into the final document.
+
+LCEL Chains (built once at module level, reused for every request):
+    map_chain    = MAP_PROMPT    | llm | StrOutputParser
+    reduce_chain = REDUCE_PROMPT | llm | StrOutputParser
+    direct_chain = DIRECT_PROMPT | llm | StrOutputParser
+
+Progressive Summary (generate_progressive_summary):
+    Lightweight 3-5 bullet-point summary generated every 10 minutes during
+    live recording. Uses direct Groq API call (not LCEL) for speed.
+    Max 500 tokens, temperature 0.3.
+
+Output format (structured markdown):
+    ## Meeting Summary
+    ### Key Topics Discussed
+    ### Decisions Made
+    ### Action Items
+    ### Key Points
+    ### Open Questions
+
+Token estimation heuristic: words / 0.75  (1 token ≈ 0.75 English words)
+
+Author : MeetingAI
+"""
+
 import sys
 from groq import Groq
 from langchain_groq import ChatGroq

@@ -1,3 +1,23 @@
+"""
+app/main.py
+===========
+Application entry point for MeetingAI.
+
+Responsibilities:
+- Creates and configures the FastAPI application instance.
+- Registers the WebSocket audio route, REST API routers, and static file serving.
+- Uses FastAPI's lifespan context manager to run startup and shutdown logic:
+    * Startup  : verifies all required folders exist (uploads, output, transcripts, logs)
+                 and pre-warms the Groq transcription client.
+    * Shutdown : logs a clean shutdown message.
+- Exposes a /health endpoint for deployment monitoring.
+
+Entry point command:
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+Author : MeetingAI
+"""
+
 import sys
 import os
 from app.api.audio import audio_websocket

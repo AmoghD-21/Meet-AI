@@ -1,3 +1,32 @@
+"""
+app/core/exceptions.py
+======================
+Custom exception hierarchy for MeetingAI.
+
+Design:
+- `MyException` is the base class for all custom exceptions.
+  Its `__init__` calls `error_message_detail()` which extracts the Python
+  source filename and line number from `sys.exc_info()` traceback, producing
+  highly precise log messages of the form:
+      "Error in [<file>] at line [<N>]: <message>"
+
+- Domain-specific subclasses inherit from `MyException` with no additional
+  logic (the `pass` body is intentional — the type itself carries the domain).
+
+Exception classes:
+    AudioProcessingException    — ffmpeg conversion failures
+    TranscriptionException      — Groq Whisper API failures
+    SummaryGenerationException  — Groq LLM summarization failures
+    FileProcessingException     — File upload / parsing failures
+    WebSocketException          — WebSocket connection failures
+    ModelLoadException          — Critical: AI model failed to load (app cannot start)
+
+Usage:
+    raise TranscriptionException("Groq returned empty response", sys)
+
+Author : MeetingAI
+"""
+
 import sys
 import logging
 

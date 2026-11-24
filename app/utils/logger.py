@@ -1,3 +1,38 @@
+"""
+app/utils/logger.py
+====================
+Centralised logging configuration for MeetingAI.
+
+Sets up the Python root logger with two handlers at module import time:
+
+RotatingFileHandler (DEBUG level):
+    - Writes ALL log messages (DEBUG and above) to a timestamped file in /logs.
+    - File name format: MM_DD_YYYY_HH_MM_SS.log
+    - Max file size: 5 MB per file.
+    - Backup count: 3 (keeps last 3 rotated files alongside the current one).
+    - Useful for post-incident debugging and audit trails.
+
+StreamHandler (INFO level):
+    - Writes INFO and above to stdout (console).
+    - UTF-8 encoding with line buffering (buffering=1) for real-time output.
+    - Hides DEBUG noise from the terminal during normal operation.
+
+Log format:
+    [ YYYY-MM-DD HH:MM:SS,mmm ] <module_name> - <LEVEL> - <message>
+
+Usage (in every module):
+    from app.utils.logger import get_logger
+    logger = get_logger(__name__)
+    logger.info("Session started")
+    logger.error("Transcription failed: ...")
+    logger.debug("Chunk 3 — 4096 bytes")
+
+configure_logger() is called automatically at import time (bottom of this file).
+Call get_logger(__name__) in every module — do NOT call configure_logger() again.
+
+Author : MeetingAI
+"""
+
 import logging
 import os
 import sys

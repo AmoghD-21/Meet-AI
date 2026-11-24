@@ -1,3 +1,53 @@
+"""
+app/services/rag/agent.py
+==========================
+LangGraph ReAct agent for intelligent meeting Q&A.
+
+Implements a stateful tool-calling agent using LangGraph's StateGraph.
+The agent can answer questions about the meeting transcript, search the web,
+and manage Google Calendar events — all within a single conversation turn.
+
+Agent LLM:
+    GPT-4o via GitHub Models (Azure inference endpoint).
+    Used over Groq LLaMA for superior tool-calling reliability.
+    Temperature 0.3 for consistent, factual responses.
+
+Graph Structure (ReAct pattern):
+    START → call_llm → tools_condition → tools → call_llm → ...
+                                       → END (when no tool call)
+
+    - call_llm   : Invokes GPT-4o with current message history.
+    - tools      : ToolNode — executes the tool chosen by the LLM.
+    - tools_condition : Prebuilt LangGraph router — checks if the last
+                         AIMessage contains tool_calls. Routes to "tools"
+                         if yes, END if no.
+    - The tools → call_llm back-edge creates the ReAct loop.
+    - recursion_limit=10 caps the loop at 10 node visits (5 tool calls max).
+
+AgentState:
+    TypedDict with a single key `messages: Annotated[list, add_messages]`.
+    add_messages is LangGraph's reducer — safely merges messages from
+    multiple nodes without overwriting.
+
+System Prompt:
+    Generated dynamically with today's date (for calendar date calculations).
+    Instructs the LLM on tool selection priority:
+      1. search_transcript — for ANY meeting content question
+      2. web_search        — for external facts
+      3. Calendar tools    — for create/list/update/delete events
+
+Session Caching:
+    The compiled graph is attached to the MeetingVectorStore instance as
+    `store._agent`. Built lazily on the first Q&A request of the session.
+    MCP server startup (5-8s) only happens once per session this way.
+
+Async:
+    run_agent() uses ainvoke (not invoke) because MCP tools are async-only.
+    The entire agent execution is awaitable and non-blocking.
+
+Author : MeetingAI
+"""
+
 import asyncio
 import os
 from typing import Annotated, TypedDict

@@ -1,3 +1,45 @@
+"""
+app/services/rag/store.py
+=========================
+Thread-safe, per-session in-memory vector store for the RAG pipeline.
+
+MeetingVectorStore wraps a LangChain Chroma instance configured for
+in-memory storage (no persist_directory). Each session gets its own
+isolated ChromaDB collection, preventing any cross-session data leakage.
+
+Embedding Model:
+    FastEmbedEmbeddings with BAAI/bge-small-en-v1.5 (33M parameters).
+    Runs locally via ONNX runtime — no API call, no network latency, no cost.
+    Loaded ONCE at module level as a module-level singleton and shared
+    across all sessions (embedding inference is stateless and thread-safe).
+
+Vector Store Configuration:
+    collection_name : "session_{session_id}"   — unique per session
+    hnsw:space      : "cosine"                 — cosine similarity metric
+    no persist_directory                        — pure in-memory (privacy + speed)
+
+Thread Safety:
+    threading.Lock() protects both add_texts() (write) and similarity_search()
+    (read) from concurrent access. The ingestion background thread writes while
+    the LangGraph agent coroutine reads — the lock prevents race conditions.
+
+Deduplication:
+    _seen: set[str] tracks all previously indexed sentence texts.
+    add_texts() filters out duplicates before calling chroma.add_texts().
+
+Key Methods:
+    add_texts(texts, chunk_id)      Add sentences from one audio chunk
+    similarity_search(query, k=5)   Top-k cosine similarity search
+    as_retriever(k=5)               Returns LangChain retriever object
+    count (property)                Number of sentences currently indexed
+
+KNOWN LIMITATION:
+    threading.Lock() allows only one reader or writer at a time.
+    A readers-writer lock (RWLock) would improve throughput under heavy load.
+
+Author : MeetingAI
+"""
+
 import threading
 from langchain_chroma import Chroma
 from langchain_community.embeddings import FastEmbedEmbeddings

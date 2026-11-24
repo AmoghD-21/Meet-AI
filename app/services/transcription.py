@@ -1,3 +1,38 @@
+"""
+app/services/transcription.py
+==============================
+Speech-to-text transcription service using Groq Whisper large-v3.
+
+Groq's LPU (Language Processing Unit) hardware makes Whisper inference
+significantly faster than standard GPU-based deployments, making it
+practical for near-real-time transcription of 15-second audio chunks.
+
+The Groq client is initialised once at module level as a singleton.
+This avoids per-request connection overhead and is safe for concurrent use.
+
+Functions:
+
+transcribe_chunk(audio_path) -> str
+    Used by the WebSocket pipeline for live recording.
+    Sends a WAV file to Groq's audio.transcriptions.create API.
+    Uses response_format="text" — returns a plain string directly.
+    Handles both str and object response types for SDK compatibility.
+    Raises TranscriptionException on any failure.
+
+transcribe_audio(audio_path) -> dict
+    Used by the /api/upload endpoint for pre-recorded files.
+    Uses response_format="verbose_json" — returns richer data:
+      - text     : full transcript string
+      - language : detected language code
+      - segments : list of timed segments (if available)
+      - words    : word count
+
+Both functions raise TranscriptionException (from app.core.exceptions)
+so callers can handle transcription failures independently of other errors.
+
+Author : MeetingAI
+"""
+
 import os
 import sys
 from groq import Groq
